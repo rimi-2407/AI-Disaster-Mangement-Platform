@@ -1,0 +1,276 @@
+* {
+  box-sizing: border-box;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  font-family: "Segoe UI", sans-serif;
+  background: #f5f7fb;
+  color: #18243a;
+}
+
+.login-left {
+  width: 48%;
+  min-height: 100vh;
+  padding: 55px 8%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: white;
+  background:
+    radial-gradient(circle at 80% 20%, #285b86 0%, transparent 40%),
+    linear-gradient(145deg, #0b192d, #102d4c 65%, #123d59);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.brand-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  background: #1e91a8;
+  border-radius: 12px;
+  font-size: 25px;
+}
+
+.brand-light {
+  color: #63c9d4;
+}
+
+.hero-content {
+  max-width: 520px;
+}
+
+.eyebrow,
+.form-eyebrow {
+  color: #48bdc8;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.hero-content h1 {
+  font-size: clamp(42px, 5vw, 65px);
+  line-height: 1.12;
+  margin: 22px 0;
+}
+
+.hero-content h1 span {
+  color: #55c5d1;
+}
+
+.hero-description {
+  color: #c0d0df;
+  line-height: 1.8;
+  font-size: 16px;
+}
+
+.hero-points {
+  margin-top: 35px;
+  color: #e2edf5;
+  line-height: 2.2;
+}
+
+.left-footer {
+  color: #8fa9bc;
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.login-right {
+  width: 52%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 25px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 440px;
+}
+
+.mobile-brand {
+  display: none;
+}
+
+.form-eyebrow {
+  color: #168b9b;
+  margin-bottom: 12px;
+}
+
+.login-card h2 {
+  font-size: 29px;
+  margin: 0 0 10px;
+}
+
+.form-subtitle {
+  color: #778397;
+  font-size: 14px;
+  margin-bottom: 30px;
+}
+
+.login-card form > label {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  margin: 19px 0 9px;
+}
+
+.login-card input {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid #d9e0e9;
+  border-radius: 8px;
+  background: white;
+  outline: none;
+  font-size: 14px;
+}
+
+.login-card input:focus {
+  border-color: #168b9b;
+  box-shadow: 0 0 0 3px #168b9b18;
+}
+
+.role-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+}
+
+.role-option {
+  min-height: 78px;
+  border: 1px solid #dce3ec;
+  border-radius: 9px;
+  background: white;
+  color: #475467;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.role-option span {
+  font-size: 21px;
+}
+
+.role-option.selected {
+  border: 2px solid #168b9b;
+  background: #eaf8f9;
+  color: #087887;
+  font-weight: 700;
+}
+
+.password-wrapper {
+  position: relative;
+}
+
+.password-wrapper input {
+  padding-right: 65px;
+}
+
+.show-password {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: #168b9b;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.login-submit {
+  width: 100%;
+  height: 49px;
+  margin-top: 25px;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  background: #087f91;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.login-submit:hover {
+  background: #075f70;
+  transform: translateY(-1px);
+}
+
+.login-error {
+  color: #c0392b;
+  font-size: 13px;
+  margin-top: 14px;
+}
+
+.form-switch {
+  text-align: center;
+  margin-top: 24px;
+  color: #778397;
+  font-size: 14px;
+}
+
+.form-switch button {
+  border: none;
+  background: transparent;
+  color: #087f91;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.security-note {
+  text-align: center;
+  color: #9aa5b4;
+  font-size: 12px;
+  margin-top: 35px;
+}
+
+@media (max-width: 800px) {
+  .login-left {
+    display: none;
+  }
+
+  .login-right {
+    width: 100%;
+    min-height: 100vh;
+    padding: 30px 22px;
+  }
+
+  .mobile-brand {
+    display: block;
+    color: #087f91;
+    font-weight: 800;
+    letter-spacing: 1px;
+    margin-bottom: 35px;
+  }
+}
+
+@media (max-width: 400px) {
+  .role-options {
+    gap: 5px;
+  }
+
+  .role-option {
+    font-size: 11px;
+  }
+
+  .login-card h2 {
+    font-size: 24px;
+  }
+}

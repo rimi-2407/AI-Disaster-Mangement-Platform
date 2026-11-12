@@ -1,19 +1,109 @@
 import { useState } from "react";
 import Header from "./Components/Header";
 import DisasterForm from "./Components/DisasterForm";
+import Login from "./Components/Login";
+import Citizendash from "./Components/Citizendash";
+import ResponderDashboard from "./Components/ResponderDashboard";
+
 
 function App() {
   const [reports, setReports] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  // Add a newly submitted report to the list
-  const handleReportSubmit = (report) => {
-    setReports((previousReports) => [
-      ...previousReports,
-      report,
-    ]);
+  // Demo login and registration
+  const handleLogin = (userData) => {
+    setCurrentUser({
+      email: userData.email,
+      role: userData.role,
+    });
   };
 
-  // Group reports from the same location together
+  // Logout
+  const handleLogout = () => {
+    setCurrentUser(null);
+  };
+
+  // Show login page before entering the dashboard
+  if (!currentUser) {
+    return (
+      <Login
+        onLogin={handleLogin}
+        onRegister={handleLogin}
+      />
+    );
+  }
+
+  // Add a newly submitted report
+  const handleReportSubmit = (report) => {
+  setReports((previousReports) => [
+    ...previousReports,
+    {
+      ...report,
+      submittedBy: currentUser.email,
+    },
+  ]);
+};
+
+  const handleUpdateStatus = (reportId, newStatus) => {
+  setReports((previousReports) =>
+    previousReports.map((report) =>
+      report.id === reportId
+        ? {
+            ...report,
+            status: newStatus,
+            ...(newStatus === "Accepted"
+              ? { assignedTo: currentUser.email }
+              : {}),
+          }
+        : report
+    )
+  );
+};
+
+const handleAssignTask = (reportId, taskId, organization) => {
+  setReports((previousReports) =>
+    previousReports.map((report) =>
+      report.id === reportId
+        ? {
+            ...report,
+            tasks: (report.tasks || []).map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    assignedOrganization: organization,
+                    status: "Assigned",
+                  }
+                : task
+            ),
+          }
+        : report
+    )
+  );
+};
+// Show the dedicated citizen dashboard
+if (currentUser.role === "victim") {
+  return (
+    <Citizendash
+      user={currentUser}
+      reports={reports}
+      onReportSubmit={handleReportSubmit}
+      onLogout={handleLogout}
+    />
+  );
+}
+if (currentUser.role === "responder") {
+  return (
+    <ResponderDashboard
+      user={currentUser}
+      reports={reports}
+      onUpdateStatus={handleUpdateStatus}
+      onAssignTask={handleAssignTask}
+      onLogout={handleLogout}
+    />
+  );
+}
+
+  // Group reports from the same location
   const areaReports = {};
 
   reports.forEach((report) => {
@@ -29,7 +119,7 @@ function App() {
     areaReports[locationKey].reports.push(report);
   });
 
-  // Calculate the overall priority of each area
+  // Calculate overall priority of each area
   const assessAreaPriority = (area) => {
     const severityValues = {
       Low: 1,
@@ -47,8 +137,6 @@ function App() {
         0
       ) / areaReportsList.length;
 
-    // Use the highest reported number to avoid blindly
-    // adding potentially overlapping affected-person counts.
     const maxPeopleAffected = Math.max(
       ...areaReportsList.map(
         (report) => Number(report.peopleAffected) || 0
@@ -57,7 +145,6 @@ function App() {
 
     let score = averageSeverity;
 
-    // Add points based on the reported number of people affected
     if (maxPeopleAffected >= 100) {
       score += 3;
     } else if (maxPeopleAffected >= 50) {
@@ -66,7 +153,6 @@ function App() {
       score += 1;
     }
 
-    // Multiple reports provide additional evidence
     if (areaReportsList.length >= 4) {
       score += 2;
     } else if (areaReportsList.length >= 2) {
@@ -92,11 +178,57 @@ function App() {
     };
   };
 
+  const roleNames = {
+    victim: "Citizen",
+    responder: "Responder",
+    admin: "Authority",
+  };
+
+  const priorityColors = {
+    Critical: "red",
+    High: "orangered",
+    Medium: "#b8860b",
+    Low: "green",
+  };
+
   return (
     <div>
       <Header />
 
-      <main>
+      {/* User information and logout */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: "15px",
+          padding: "12px 25px",
+          background: "#f3f6f9",
+          borderBottom: "1px solid #ddd",
+          flexWrap: "wrap",
+        }}
+      >
+        <span>
+          Welcome, <strong>{roleNames[currentUser.role]}</strong>
+          {" "}({currentUser.email})
+        </span>
+
+        <button
+          onClick={handleLogout}
+          style={{
+            padding: "9px 17px",
+            background: "#173454",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+          }}
+        >
+          Logout
+        </button>
+      </div>
+
+      <main style={{ padding: "25px" }}>
         <h1>AI Disaster Intelligence Platform</h1>
 
         <p>
@@ -207,7 +339,7 @@ function App() {
                   </p>
 
                   <p>
-                    <strong>Highest Reported Number of People Affected:</strong>{" "}
+                    <strong>Highest Reported People Affected:</strong>{" "}
                     {assessment.maxPeopleAffected}
                   </p>
 
@@ -220,14 +352,7 @@ function App() {
                     Area Priority:{" "}
                     <span
                       style={{
-                        color:
-                          assessment.priority === "Critical"
-                            ? "red"
-                            : assessment.priority === "High"
-                            ? "orangered"
-                            : assessment.priority === "Medium"
-                            ? "#b8860b"
-                            : "green",
+                        color: priorityColors[assessment.priority],
                       }}
                     >
                       {assessment.priority}
