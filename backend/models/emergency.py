@@ -9,7 +9,20 @@ class EmergencyReport(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    description = db.Column(db.Text, nullable=False, default="No description provided")
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=True
+    )
+
+    user = db.relationship("User", backref="emergency_reports")
+
+    description = db.Column(
+        db.Text,
+        nullable=False,
+        default="No description provided"
+    )
+
     disaster_type = db.Column(db.String(50), nullable=False)
 
     # The current frontend accepts a text location, not GPS coordinates.

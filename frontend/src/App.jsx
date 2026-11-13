@@ -1,107 +1,180 @@
+
 import { useState } from "react";
 import Header from "./Components/Header";
 import DisasterForm from "./Components/DisasterForm";
 import Login from "./Components/Login";
 import Citizendash from "./Components/Citizendash";
 import ResponderDashboard from "./Components/ResponderDashboard";
-
+import { apiRequest } from "./api";
 
 function App() {
   const [reports, setReports] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [token, setToken] = useState(null);
 
-  // Demo login and registration
-  const handleLogin = (userData) => {
-    setCurrentUser({
-      email: userData.email,
-      role: userData.role,
+  // Login using the backend
+  const handleLogin = async (userData) => {
+    const data = await apiRequest("/api/auth/login", {
+      method: "POST",
+      body: {
+        email: userData.email,
+        password: userData.password,
+      },
     });
+
+    setToken(data.access_token);
+    setCurrentUser(data.user);
+  };
+
+  // Register and automatically log in
+  const handleRegister = async (userData) => {
+    if (userData.role === "responder") {
+      await apiRequest("/api/responders/register", {
+        method: "POST",
+        body: {
+          username: userData.username,
+          email: userData.email,
+          password: userData.password,
+          phone: userData.phone,
+          location: userData.location,
+          specialisation: userData.specialisation,
+        },
+      });
+    } else {
+      await apiRequest("/api/auth/register", {
+        method: "POST",
+        token: token,
+        body: {
+          username: userData.username,
+          email: userData.email,
+          password: userData.password,
+        },
+      });
+    }
+
+    await handleLogin(userData);
   };
 
   // Logout
   const handleLogout = () => {
     setCurrentUser(null);
+    setToken(null);
+    setReports([]);
   };
 
-  // Show login page before entering the dashboard
+  // Show login page before entering dashboard
   if (!currentUser) {
     return (
       <Login
         onLogin={handleLogin}
-        onRegister={handleLogin}
+        onRegister={handleRegister}
       />
     );
   }
 
   // Add a newly submitted report
-  const handleReportSubmit = (report) => {
-  setReports((previousReports) => [
-    ...previousReports,
-    {
-      ...report,
-      submittedBy: currentUser.email,
-    },
-  ]);
+  
+const handleReportSubmit = async (report) => {
+  try {
+    const assistance = Array.isArray(report.assistanceNeeds)
+      ? report.assistanceNeeds.join(", ")
+      : report.assistance || report.assistanceNeeded || "";
+
+    const response = await apiRequest("/api/reports/", {
+      method: "POST",
+      token: token,
+      body: {
+        disasterType: report.disasterType,
+        location: report.location,
+        severity: report.severity,
+        peopleAffected: Number(report.peopleAffected) || 0,
+        assistance: assistance,
+        description: report.description || "",
+        latitude: report.latitude ?? null,
+        longitude: report.longitude ?? null,
+      },
+    });
+
+    const savedReport = response.report;
+
+    setReports((previousReports) => [
+      ...previousReports,
+      {
+        ...savedReport,
+        submittedBy: currentUser.email,
+      },
+    ]);
+
+    alert("Emergency report submitted successfully!");
+  } catch (error) {
+    alert(error.message || "Failed to submit emergency report.");
+  }
 };
 
+
+  // Update report status
   const handleUpdateStatus = (reportId, newStatus) => {
-  setReports((previousReports) =>
-    previousReports.map((report) =>
-      report.id === reportId
-        ? {
-            ...report,
-            status: newStatus,
-            ...(newStatus === "Accepted"
-              ? { assignedTo: currentUser.email }
-              : {}),
-          }
-        : report
-    )
-  );
-};
+    setReports((previousReports) =>
+      previousReports.map((report) =>
+        report.id === reportId
+          ? {
+              ...report,
+              status: newStatus,
+              ...(newStatus === "Accepted"
+                ? { assignedTo: currentUser.email }
+                : {}),
+            }
+          : report
+      )
+    );
+  };
 
-const handleAssignTask = (reportId, taskId, organization) => {
-  setReports((previousReports) =>
-    previousReports.map((report) =>
-      report.id === reportId
-        ? {
-            ...report,
-            tasks: (report.tasks || []).map((task) =>
-              task.id === taskId
-                ? {
-                    ...task,
-                    assignedOrganization: organization,
-                    status: "Assigned",
-                  }
-                : task
-            ),
-          }
-        : report
-    )
-  );
-};
-// Show the dedicated citizen dashboard
-if (currentUser.role === "victim") {
-  return (
-    <Citizendash
-      user={currentUser}
-      reports={reports}
-      onReportSubmit={handleReportSubmit}
-      onLogout={handleLogout}
-    />
-  );
-}
-if (currentUser.role === "responder") {
-  return (
-    <ResponderDashboard
-      user={currentUser}
-      reports={reports}
-      onUpdateStatus={handleUpdateStatus}
-      onAssignTask={handleAssignTask}
-      onLogout={handleLogout}
-    />
-  );
-}
+  // Assign task
+  const handleAssignTask = (reportId, taskId, organization) => {
+    setReports((previousReports) =>
+      previousReports.map((report) =>
+        report.id === reportId
+          ? {
+              ...report,
+              tasks: (report.tasks || []).map((task) =>
+                task.id === taskId
+                  ? {
+                      ...task,
+                      assignedOrganization: organization,
+                      status: "Assigned",
+                    }
+                  : task
+              ),
+            }
+          : report
+      )
+    );
+  };
+
+  // Show citizen dashboard
+  if (currentUser.role === "citizen") {
+    return (
+      <Citizendash
+        user={currentUser}
+        reports={reports}
+        onReportSubmit={handleReportSubmit}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // Show responder dashboard
+  if (currentUser.role === "responder") {
+    return (
+      <ResponderDashboard
+        user={currentUser}
+        reports={reports}
+        onUpdateStatus={handleUpdateStatus}
+        onAssignTask={handleAssignTask}
+        onLogout={handleLogout}
+      />
+    );
+  }
 
   // Group reports from the same location
   const areaReports = {};
@@ -179,7 +252,7 @@ if (currentUser.role === "responder") {
   };
 
   const roleNames = {
-    victim: "Citizen",
+    citizen: "Citizen",
     responder: "Responder",
     admin: "Authority",
   };
@@ -209,7 +282,7 @@ if (currentUser.role === "responder") {
         }}
       >
         <span>
-          Welcome, <strong>{roleNames[currentUser.role]}</strong>
+          Welcome, <strong>{roleNames[currentUser.role] || "User"}</strong>
           {" "}({currentUser.email})
         </span>
 

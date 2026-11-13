@@ -1,10 +1,10 @@
-
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
 from extensions import db
 from models.emergency import EmergencyReport
-
 emergency_bp = Blueprint(
     "emergency",
     __name__,
@@ -47,6 +47,7 @@ def report_to_dict(report):
 
 
 @emergency_bp.route("/", methods=["POST"])
+@jwt_required()
 def create_report():
     data = request.get_json(silent=True)
 
@@ -58,6 +59,7 @@ def create_report():
     severity = str(data.get("severity", "Medium")).strip()
     assistance = get_field(data, "assistance", "assistance_needed")
     description = (data.get("description") or "").strip()
+    user_id = int(get_jwt_identity())
 
     if not isinstance(disaster_type, str) or not disaster_type.strip():
         return jsonify({"error": "Disaster type is required"}), 400
@@ -117,6 +119,7 @@ def create_report():
         }), 400
 
     report = EmergencyReport(
+        user_id=user_id,
         description=description or "No description provided",
         disaster_type=disaster_type.strip(),
         location=location.strip(),
@@ -144,8 +147,6 @@ def create_report():
             "error": "Could not save the emergency report"
         }), 500
 
-
-@emergency_bp.route("/", methods=["GET"])
 
 @emergency_bp.route("/", methods=["GET"])
 def get_reports():

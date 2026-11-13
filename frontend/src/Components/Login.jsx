@@ -1,16 +1,22 @@
+
 import { useState } from "react";
 import "./Login.css";
 
 function Login({ onLogin, onRegister }) {
   const [mode, setMode] = useState("login");
-  const [role, setRole] = useState("victim");
+  const [role, setRole] = useState("citizen");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [location, setLocation] = useState("");
+  const [specialisation, setSpecialisation] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
@@ -19,34 +25,52 @@ function Login({ onLogin, onRegister }) {
       return;
     }
 
-    if (mode === "signup" && password.length < 6) {
-      setError("Password must contain at least 6 characters.");
-      return;
-    }
+    if (mode === "signup") {
+      if (!username.trim()) {
+        setError("Please enter your username.");
+        return;
+      }
 
-    if (mode === "signup" && password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
+      if (password.length < 8) {
+        setError("Password must contain at least 8 characters.");
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
+
+      if (role === "responder") {
+        if (!phone.trim() || !location.trim() || !specialisation.trim()) {
+          setError("Please complete all responder details.");
+          return;
+        }
+      }
     }
 
     const userData = {
+      username: username.trim(),
       email: email.trim(),
+      password,
       role,
-      password
+      phone: phone.trim(),
+      location: location.trim(),
+      specialisation: specialisation.trim(),
     };
 
-    if (mode === "login") {
-      if (onLogin) {
-        onLogin(userData);
+    try {
+      setLoading(true);
+
+      if (mode === "login") {
+        await onLogin(userData);
       } else {
-        setError("Login form is ready. Backend connection is pending.");
+        await onRegister(userData);
       }
-    } else {
-      if (onRegister) {
-        onRegister(userData);
-      } else {
-        setError("Registration form is ready. Backend connection is pending.");
-      }
+    } catch (err) {
+      setError(err.message || "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -105,25 +129,73 @@ function Login({ onLogin, onRegister }) {
           </p>
 
           <form onSubmit={handleSubmit}>
-            <label>Select your role</label>
 
-            <div className="role-options">
-              {[
-                { id: "victim", label: "Citizen", icon: "👤" },
-                { id: "responder", label: "Responder", icon: "🚑" },
-                { id: "admin", label: "Authority", icon: "🏢" }
-              ].map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  className={`role-option ${role === item.id ? "selected" : ""}`}
-                  onClick={() => setRole(item.id)}
-                >
-                  <span>{item.icon}</span>
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            {mode === "signup" && (
+              <>
+                <label htmlFor="username">Full name / Username</label>
+                <input
+                  id="username"
+                  type="text"
+                  placeholder="Enter your name"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
+
+                <label>Select your role</label>
+
+                <div className="role-options">
+                  {[
+                    { id: "citizen", label: "Citizen", icon: "👤" },
+                    { id: "responder", label: "Responder", icon: "🚑" }
+                  ].map((item) => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      className={`role-option ${role === item.id ? "selected" : ""}`}
+                      onClick={() => setRole(item.id)}
+                    >
+                      <span>{item.icon}</span>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+
+                {role === "responder" && (
+                  <>
+                    <label htmlFor="phone">Phone number</label>
+                    <input
+                      id="phone"
+                      type="tel"
+                      placeholder="Enter phone number"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      required
+                    />
+
+                    <label htmlFor="location">Location</label>
+                    <input
+                      id="location"
+                      type="text"
+                      placeholder="City or area"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      required
+                    />
+
+                    <label htmlFor="specialisation">Specialisation</label>
+                    <input
+                      id="specialisation"
+                      type="text"
+                      placeholder="e.g. Flood Rescue, Medical Aid"
+                      value={specialisation}
+                      onChange={(e) => setSpecialisation(e.target.value)}
+                      required
+                    />
+                  </>
+                )}
+              </>
+            )}
 
             <label htmlFor="email">Email address</label>
             <input
@@ -136,6 +208,7 @@ function Login({ onLogin, onRegister }) {
             />
 
             <label htmlFor="password">Password</label>
+
             <div className="password-wrapper">
               <input
                 id="password"
@@ -171,8 +244,16 @@ function Login({ onLogin, onRegister }) {
 
             {error && <p className="login-error">{error}</p>}
 
-            <button type="submit" className="login-submit">
-              {mode === "login" ? "Sign In →" : "Create Account →"}
+            <button
+              type="submit"
+              className="login-submit"
+              disabled={loading}
+            >
+              {loading
+                ? "Please wait..."
+                : mode === "login"
+                  ? "Sign In →"
+                  : "Create Account →"}
             </button>
           </form>
 

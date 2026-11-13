@@ -274,3 +274,14 @@
     font-size: 24px;
   }
 }
+/* Fix input text visibility */
+.login-card input {
+  color: #173454 !important;
+  background-color: #ffffff;
+}
+
+/* Fix placeholder visibility */
+.login-card input::placeholder {
+  color: #8a96a3 !important;
+  opacity: 1;
+}
