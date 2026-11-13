@@ -1,0 +1,330 @@
+.citizen-dashboard {
+  min-height: 100vh;
+  background: #f4f7fb;
+  color: #172b43;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.citizen-topbar {
+  padding: 25px 6%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  border-bottom: 1px solid #e5eaf0;
+}
+
+.citizen-role {
+  color: #078b9a;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.citizen-topbar h2 {
+  margin: 7px 0 3px;
+}
+
+.citizen-topbar p,
+.citizen-section > p {
+  color: #778397;
+  font-size: 14px;
+}
+
+.citizen-logout {
+  background: #173454;
+  color: white;
+  border: 0;
+  border-radius: 7px;
+  padding: 11px 19px;
+  cursor: pointer;
+}
+
+.citizen-nav {
+  display: flex;
+  gap: 8px;
+  padding: 0 6%;
+  background: white;
+  border-bottom: 1px solid #e5eaf0;
+  overflow-x: auto;
+}
+
+.citizen-nav button {
+  border: 0;
+  background: transparent;
+  padding: 17px 14px;
+  color: #66758a;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.citizen-nav button.active {
+  color: #078b9a;
+  border-bottom: 3px solid #078b9a;
+  font-weight: 700;
+}
+
+.citizen-main {
+  max-width: 1250px;
+  margin: auto;
+  padding: 35px 25px;
+}
+
+.citizen-hero {
+  padding: 45px;
+  border-radius: 16px;
+  background: linear-gradient(120deg, #102b48, #17627b);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.citizen-hero > div:first-child {
+  max-width: 620px;
+}
+
+.citizen-hero span {
+  color: #72d9dd;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.citizen-hero h1 {
+  font-size: clamp(27px, 4vw, 43px);
+  line-height: 1.2;
+  margin: 15px 0;
+}
+
+.citizen-hero p {
+  color: #d3e2ed;
+  line-height: 1.7;
+}
+
+.citizen-hero button {
+  margin-top: 15px;
+  background: #45c1c9;
+  color: #102b48;
+  border: 0;
+  border-radius: 7px;
+  padding: 13px 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hero-symbol {
+  font-size: 100px;
+  color: #72d9dd;
+  padding: 20px;
+}
+
+.citizen-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin: 25px 0 40px;
+}
+
+.citizen-stat {
+  background: white;
+  border: 1px solid #e6ebf1;
+  border-radius: 12px;
+  padding: 23px;
+}
+
+.citizen-stat span {
+  color: #778397;
+  font-size: 14px;
+}
+
+.citizen-stat h2 {
+  margin: 10px 0 0;
+  font-size: 32px;
+  color: #087f91;
+}
+
+.citizen-section {
+  margin: 30px 0;
+}
+
+.citizen-section h1 {
+  margin-bottom: 8px;
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.section-heading p {
+  color: #778397;
+  font-size: 14px;
+}
+
+.section-heading button {
+  background: transparent;
+  border: 0;
+  color: #087f91;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.citizen-form-card {
+  margin-top: 25px;
+  padding: 25px;
+  background: white;
+  border: 1px solid #e5eaf0;
+  border-radius: 12px;
+}
+
+.citizen-report-list {
+  display: grid;
+  gap: 14px;
+}
+
+.citizen-report {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 20px;
+  background: white;
+  border: 1px solid #e5eaf0;
+  border-radius: 10px;
+}
+
+.citizen-report h3 {
+  margin: 0 0 10px;
+}
+
+.citizen-report p {
+  color: #65748a;
+  font-size: 14px;
+  margin: 7px 0;
+}
+
+.citizen-report small {
+  color: #9aa5b4;
+}
+
+.report-status {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 11px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.report-status.pending {
+  background: #fff3d8;
+  color: #946200;
+}
+
+.report-status.resolved {
+  background: #dff5e8;
+  color: #167345;
+}
+
+.empty-reports {
+  padding: 45px 15px;
+  text-align: center;
+  background: white;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+}
+
+.empty-reports span {
+  font-size: 35px;
+}
+
+.empty-reports p {
+  color: #778397;
+}
+
+.citizen-help-card {
+  background: #fff5e8;
+  border: 1px solid #f1d7ae;
+  border-radius: 12px;
+  padding: 25px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+}
+
+.citizen-help-card p {
+  color: #765d3c;
+  line-height: 1.6;
+}
+
+.citizen-help-card > span {
+  font-size: 35px;
+  font-weight: 800;
+  color: #c27b1d;
+}
+
+.safety-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+  margin-top: 25px;
+}
+
+.safety-card {
+  background: white;
+  padding: 25px;
+  border: 1px solid #e5eaf0;
+  border-radius: 12px;
+}
+
+.safety-card span {
+  font-size: 30px;
+}
+
+.safety-card p {
+  color: #778397;
+  line-height: 1.7;
+}
+
+.citizen-footer {
+  text-align: center;
+  padding: 25px;
+  color: #8a97a8;
+  font-size: 12px;
+}
+
+@media (max-width: 650px) {
+  .citizen-main {
+    padding: 22px 15px;
+  }
+
+  .citizen-hero {
+    padding: 28px 22px;
+  }
+
+  .hero-symbol {
+    display: none;
+  }
+
+  .citizen-stats {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .safety-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .citizen-report {
+    flex-direction: column;
+  }
+
+  .citizen-form-card {
+    padding: 12px;
+  }
+}
