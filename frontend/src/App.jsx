@@ -22,9 +22,26 @@ function App() {
       },
     });
 
-    setToken(data.access_token);
+    const accessToken = data.access_token;
+
+    setToken(accessToken);
     setCurrentUser(data.user);
+
+    const reportsData = await apiRequest("/api/reports/", {
+      method: "GET",
+      token: accessToken,
+    });
+
+    setReports(
+      (reportsData.reports || []).map((report) => ({
+        ...report,
+        submittedBy: data.user.email,
+      }))
+    );
   };
+
+  // Keep your remaining functions below...
+
 
   // Register and automatically log in
   const handleRegister = async (userData) => {

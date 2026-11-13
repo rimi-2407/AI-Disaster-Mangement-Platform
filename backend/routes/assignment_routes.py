@@ -18,8 +18,12 @@ assignment_bp = Blueprint(
 
 
 def get_current_user():
-    user_id = get_jwt_identity()
-    return db.session.get(User, int(user_id))
+    try:
+        user_id = int(get_jwt_identity())
+    except (ValueError, TypeError):
+        return None
+
+    return db.session.get(User, user_id)
 
 
 def admin_required():
@@ -41,20 +45,15 @@ def create_assignment():
     if not admin:
         return jsonify({"error": "Admin access required"}), 403
 
-    data = request.get_json()
+    data = request.get_json(silent=True)
 
-    if not data:
-        return jsonify({"error": "Request body is required"}), 400
+    if not isinstance(data, dict):
+        return jsonify({"error": "A valid JSON body is required"}), 400
 
     emergency_id = data.get("emergency_id")
     responder_id = data.get("responder_id")
     resource_id = data.get("resource_id")
     resource_quantity = data.get("resource_quantity", 0)
-
-    if not emergency_id or not responder_id:
-        return jsonify({
-            "error": "Emergency ID and responder ID are required"
-        }), 400
 
     try:
         emergency_id = int(emergency_id)
@@ -66,6 +65,12 @@ def create_assignment():
 
     except (ValueError, TypeError):
         return jsonify({"error": "IDs and quantity must be valid numbers"}), 400
+
+    if emergency_id <= 0 or responder_id <= 0:
+        return jsonify({"error": "IDs must be positive numbers"}), 400
+
+    if resource_id is not None and resource_id <= 0:
+        return jsonify({"error": "Resource ID must be positive"}), 400
 
     if resource_quantity < 0:
         return jsonify({"error": "Resource quantity cannot be negative"}), 400
@@ -80,6 +85,9 @@ def create_assignment():
 
     if not emergency:
         return jsonify({"error": "Emergency report not found"}), 404
+
+    if emergency.status in ["resolved", "closed", "completed"]:
+        return jsonify({"error": "This emergency report is already closed"}), 400
 
     if not responder:
         return jsonify({"error": "Responder not found"}), 404
@@ -217,21 +225,24 @@ def update_assignment_status(assignment_id):
         ):
             return jsonify({"error": "Access denied"}), 403
 
-    data = request.get_json()
+    data = request.get_json(silent=True)
 
-    if not data or "status" not in data:
+    if not isinstance(data, dict) or "status" not in data:
         return jsonify({"error": "Status is required"}), 400
 
     new_status = data["status"]
 
-    allowed_statuses = ["in_progress", "completed", "cancelled"]
+    if not isinstance(new_status, str):
+        return jsonify({"error": "Status must be text"}), 400
 
-    if new_status not in allowed_statuses:
-        return jsonify({"error": "Invalid assignment status"}), 400
+    allowed_transitions = {
+        "assigned": ["in_progress", "cancelled"],
+        "in_progress": ["completed", "cancelled"]
+    }
 
-    if assignment.status in ["completed", "cancelled"]:
+    if new_status not in allowed_transitions.get(assignment.status, []):
         return jsonify({
-            "error": "This assignment is already closed"
+            "error": "Invalid status transition"
         }), 400
 
     responder = db.session.get(Responder, assignment.responder_id)
@@ -241,7 +252,10 @@ def update_assignment_status(assignment_id):
             resource = db.session.get(Resource, assignment.resource_id)
 
             if resource:
-                resource.available_quantity += assignment.resource_quantity
+                resource.available_quantity = min(
+                    resource.quantity,
+                    resource.available_quantity + assignment.resource_quantity
+                )
 
         if new_status in ["completed", "cancelled"] and responder:
             responder.availability = "available"

@@ -17,8 +17,12 @@ responder_bp = Blueprint(
 
 
 def get_current_user():
-    user_id = get_jwt_identity()
-    return db.session.get(User, int(user_id))
+    try:
+        user_id = int(get_jwt_identity())
+    except (ValueError, TypeError):
+        return None
+
+    return db.session.get(User, user_id)
 
 
 def admin_required(fn):
@@ -54,39 +58,47 @@ def validate_responder_data(data, include_account=True):
         if len(data["password"]) < 8:
             return "Password must contain at least 8 characters"
 
+        if "@" not in data["email"]:
+            return "Enter a valid email address"
+
     return None
 
 
-def create_responder_account(data, role="responder"):
+def create_responder_account(data, approval_status="pending"):
     email = data["email"].strip().lower()
 
     if User.query.filter_by(email=email).first():
-        return None, "An account with this email already exists"
+        return None, "An account with this email already exists", 409
 
-    user = User(
-        username=data["username"].strip(),
-        email=email,
-        role=role
-    )
+    try:
+        user = User(
+            username=data["username"].strip(),
+            email=email,
+            role="responder"
+        )
 
-    user.set_password(data["password"])
+        user.set_password(data["password"])
 
-    db.session.add(user)
-    db.session.flush()
+        db.session.add(user)
+        db.session.flush()
 
-    responder = Responder(
-        user_id=user.id,
-        phone=data["phone"].strip(),
-        location=data["location"].strip(),
-        specialisation=data["specialisation"].strip(),
-        approval_status="approved",
-        availability="unavailable"
-    )
+        responder = Responder(
+            user_id=user.id,
+            phone=data["phone"].strip(),
+            location=data["location"].strip(),
+            specialisation=data["specialisation"].strip(),
+            approval_status=approval_status,
+            availability="unavailable"
+        )
 
-    db.session.add(responder)
-    db.session.commit()
+        db.session.add(responder)
+        db.session.commit()
 
-    return responder, None
+        return responder, None, 201
+
+    except Exception:
+        db.session.rollback()
+        return None, "Could not create responder account", 500
 
 
 # 1. Responder self-registration
@@ -99,13 +111,16 @@ def register_responder():
     if error:
         return jsonify({"error": error}), 400
 
-    responder, error = create_responder_account(data)
+    responder, error, status_code = create_responder_account(
+        data,
+        approval_status="pending"
+    )
 
     if error:
-        return jsonify({"error": error}), 409
+        return jsonify({"error": error}), status_code
 
     return jsonify({
-        "message": "Responder registered successfully",
+        "message": "Responder registered successfully. Awaiting admin approval.",
         "responder": responder.to_dict()
     }), 201
 
@@ -121,10 +136,13 @@ def admin_create_responder():
     if error:
         return jsonify({"error": error}), 400
 
-    responder, error = create_responder_account(data)
+    responder, error, status_code = create_responder_account(
+        data,
+        approval_status="approved"
+    )
 
     if error:
-        return jsonify({"error": error}), 409
+        return jsonify({"error": error}), status_code
 
     return jsonify({
         "message": "Responder account created successfully",
@@ -165,7 +183,9 @@ def get_responder(responder_id):
     if user.role != "admin" and responder.user_id != user.id:
         return jsonify({"error": "Access denied"}), 403
 
-    return jsonify({"responder": responder.to_dict()}), 200
+    return jsonify({
+        "responder": responder.to_dict()
+    }), 200
 
 
 # 5. Admin approves or rejects a responder
@@ -179,7 +199,7 @@ def update_responder_approval(responder_id):
 
     status = data.get("approval_status")
 
-    if status not in ["approved", "rejected"]:
+    if not isinstance(status, str) or status not in ["approved", "rejected"]:
         return jsonify({
             "error": "Status must be approved or rejected"
         }), 400
@@ -194,12 +214,19 @@ def update_responder_approval(responder_id):
     if status == "rejected":
         responder.availability = "unavailable"
 
-    db.session.commit()
+    try:
+        db.session.commit()
 
-    return jsonify({
-        "message": "Responder status updated",
-        "responder": responder.to_dict()
-    }), 200
+        return jsonify({
+            "message": "Responder status updated",
+            "responder": responder.to_dict()
+        }), 200
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({
+            "error": "Could not update responder approval"
+        }), 500
 
 
 # 6. Responder updates availability
@@ -216,7 +243,9 @@ def update_availability(responder_id):
     if not responder:
         return jsonify({"error": "Responder not found"}), 404
 
-    if user.role != "admin" and responder.user_id != user.id:
+    if user.role != "admin" and (
+        user.role != "responder" or responder.user_id != user.id
+    ):
         return jsonify({"error": "Access denied"}), 403
 
     data = request.get_json(silent=True)
@@ -226,20 +255,30 @@ def update_availability(responder_id):
 
     availability = data.get("availability")
 
-    if availability not in ["available", "unavailable", "busy"]:
+    if not isinstance(availability, str) or availability not in [
+        "available", "unavailable", "busy"
+    ]:
         return jsonify({
             "error": "Availability must be available, unavailable, or busy"
         }), 400
 
     if responder.approval_status != "approved":
         return jsonify({
-            "error": "Rejected responders cannot update availability"
+            "error": "Only approved responders can update availability"
         }), 403
 
     responder.availability = availability
-    db.session.commit()
 
-    return jsonify({
-        "message": "Availability updated successfully",
-        "responder": responder.to_dict()
-    }), 200
+    try:
+        db.session.commit()
+
+        return jsonify({
+            "message": "Availability updated successfully",
+            "responder": responder.to_dict()
+        }), 200
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({
+            "error": "Could not update availability"
+        }), 500

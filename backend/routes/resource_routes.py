@@ -20,8 +20,12 @@ def admin_required(fn):
     @wraps(fn)
     @jwt_required()
     def wrapper(*args, **kwargs):
-        user_id = get_jwt_identity()
-        user = db.session.get(User, int(user_id))
+        try:
+            user_id = int(get_jwt_identity())
+        except (TypeError, ValueError):
+            return jsonify({"error": "Invalid user identity"}), 401
+
+        user = db.session.get(User, user_id)
 
         if not user or user.role != "admin":
             return jsonify({"error": "Admin access required"}), 403
@@ -35,11 +39,7 @@ def validate_resource_data(data, partial=False):
     if not isinstance(data, dict):
         return "Request body must be valid JSON"
 
-    required_fields = [
-        "name",
-        "category",
-        "location"
-    ]
+    required_fields = ["name", "category", "location"]
 
     if not partial:
         for field in required_fields:
@@ -47,27 +47,43 @@ def validate_resource_data(data, partial=False):
             if not isinstance(value, str) or not value.strip():
                 return f"{field} is required"
 
-    for field in ["name", "category", "location", "unit"]:
-        if field in data:
-            if not isinstance(data[field], str) or not data[field].strip():
-                return f"{field} must be a non-empty string"
+    string_fields = [
+        "name", "category", "location", "unit",
+        "description", "contact_person", "contact_phone"
+    ]
+
+    for field in string_fields:
+        if field in data and data[field] is not None:
+            if not isinstance(data[field], str):
+                return f"{field} must be a string"
+
+            if field in ["name", "category", "location", "unit"]:
+                if not data[field].strip():
+                    return f"{field} cannot be empty"
 
     for field in ["quantity", "available_quantity"]:
         if field in data:
             value = data[field]
+
             if type(value) is not int or value < 0:
                 return f"{field} must be a non-negative integer"
 
-    if "latitude" in data and data["latitude"] is not None:
-        if type(data["latitude"]) not in (int, float):
-            return "latitude must be a number"
+    for field, minimum, maximum in [
+        ("latitude", -90, 90),
+        ("longitude", -180, 180)
+    ]:
+        if field in data and data[field] is not None:
+            value = data[field]
 
-    if "longitude" in data and data["longitude"] is not None:
-        if type(data["longitude"]) not in (int, float):
-            return "longitude must be a number"
+            if type(value) not in (int, float):
+                return f"{field} must be a number"
 
-    if "status" in data and data["status"] not in ["active", "inactive"]:
-        return "status must be active or inactive"
+            if not minimum <= value <= maximum:
+                return f"{field} must be between {minimum} and {maximum}"
+
+    if "status" in data:
+        if data["status"] not in ["active", "inactive"]:
+            return "status must be active or inactive"
 
     return None
 
@@ -77,6 +93,15 @@ def check_quantities(quantity, available_quantity):
         return "Available quantity cannot exceed total quantity"
 
     return None
+
+
+def commit_changes():
+    try:
+        db.session.commit()
+        return None
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "Database operation failed"}), 500
 
 
 # 1. Add a new resource (Admin only)
@@ -104,7 +129,7 @@ def add_resource():
         description=data.get("description"),
         quantity=quantity,
         available_quantity=available_quantity,
-        unit=data.get("unit", "units"),
+        unit=data.get("unit", "units").strip(),
         location=data["location"].strip(),
         latitude=data.get("latitude"),
         longitude=data.get("longitude"),
@@ -114,7 +139,10 @@ def add_resource():
     )
 
     db.session.add(resource)
-    db.session.commit()
+
+    result = commit_changes()
+    if result:
+        return result
 
     return jsonify({
         "message": "Resource added successfully",
@@ -133,25 +161,22 @@ def get_all_resources():
     status = request.args.get("status")
 
     if category:
-        query = query.filter(
-            Resource.category.ilike(f"%{category}%")
-        )
+        query = query.filter(Resource.category.ilike(f"%{category}%"))
 
     if location:
-        query = query.filter(
-            Resource.location.ilike(f"%{location}%")
-        )
+        query = query.filter(Resource.location.ilike(f"%{location}%"))
 
     if status:
+        if status.lower() not in ["active", "inactive"]:
+            return jsonify({"error": "Invalid status filter"}), 400
+
         query = query.filter_by(status=status.lower())
 
     resources = query.order_by(Resource.created_at.desc()).all()
 
     return jsonify({
         "count": len(resources),
-        "resources": [
-            resource.to_dict() for resource in resources
-        ]
+        "resources": [resource.to_dict() for resource in resources]
     }), 200
 
 
@@ -195,18 +220,10 @@ def update_resource(resource_id):
         return jsonify({"error": error}), 400
 
     allowed_fields = [
-        "name",
-        "category",
-        "description",
-        "quantity",
-        "available_quantity",
-        "unit",
-        "location",
-        "latitude",
-        "longitude",
-        "contact_person",
-        "contact_phone",
-        "status"
+        "name", "category", "description",
+        "quantity", "available_quantity", "unit",
+        "location", "latitude", "longitude",
+        "contact_person", "contact_phone", "status"
     ]
 
     for field in allowed_fields:
@@ -218,7 +235,9 @@ def update_resource(resource_id):
 
             setattr(resource, field, value)
 
-    db.session.commit()
+    result = commit_changes()
+    if result:
+        return result
 
     return jsonify({
         "message": "Resource updated successfully",
@@ -236,7 +255,10 @@ def delete_resource(resource_id):
         return jsonify({"error": "Resource not found"}), 404
 
     db.session.delete(resource)
-    db.session.commit()
+
+    result = commit_changes()
+    if result:
+        return result
 
     return jsonify({
         "message": "Resource deleted successfully"
