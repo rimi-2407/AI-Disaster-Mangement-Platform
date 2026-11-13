@@ -189,16 +189,7 @@ def get_reports():
         )
 
     elif user.role == "responder":
-        active_assignments = db.session.query(
-            Assignment.emergency_id
-        ).filter(
-            Assignment.status.in_(["assigned", "in_progress"])
-        )
-
-        query = query.filter(
-            EmergencyReport.status.ilike("Reported"),
-            ~EmergencyReport.id.in_(active_assignments)
-        )
+        pass
 
     # Admins can see all reports.
 

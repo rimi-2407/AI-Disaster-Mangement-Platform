@@ -158,15 +158,18 @@ def create_assignment():
     }), 201
 
 
-# ADMIN: View all assignments
+# ADMIN or RESPONDER: View all assignments
 @assignment_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_assignments():
 
-    admin = admin_required()
+    user = get_current_user()
 
-    if not admin:
-        return jsonify({"error": "Admin access required"}), 403
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user.role not in ["admin", "responder"]:
+        return jsonify({"error": "Access denied"}), 403
 
     assignments = Assignment.query.order_by(
         Assignment.created_at.desc()
