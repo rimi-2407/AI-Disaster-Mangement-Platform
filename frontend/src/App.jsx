@@ -9,6 +9,7 @@ import { apiRequest } from "./api";
 
 function App() {
   const [reports, setReports] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [token, setToken] = useState(null);
 
@@ -27,6 +28,7 @@ function App() {
     setToken(accessToken);
     setCurrentUser(data.user);
 
+    // Fetch emergency reports
     const reportsData = await apiRequest("/api/reports/", {
       method: "GET",
       token: accessToken,
@@ -35,13 +37,23 @@ function App() {
     setReports(
       (reportsData.reports || []).map((report) => ({
         ...report,
-        submittedBy: data.user.email,
+        submittedBy:
+          data.user.role === "citizen" ? data.user.email : "Citizen",
       }))
     );
+
+    // Fetch all assignments for responders
+    if (data.user.role === "responder") {
+      const assignmentsData = await apiRequest("/api/assignments/", {
+        method: "GET",
+        token: accessToken,
+      });
+
+      setAssignments(assignmentsData.assignments || []);
+    } else {
+      setAssignments([]);
+    }
   };
-
-  // Keep your remaining functions below...
-
 
   // Register and automatically log in
   const handleRegister = async (userData) => {
@@ -77,6 +89,7 @@ function App() {
     setCurrentUser(null);
     setToken(null);
     setReports([]);
+    setAssignments([]);
   };
 
   // Show login page before entering dashboard
@@ -90,82 +103,76 @@ function App() {
   }
 
   // Add a newly submitted report
-  
-const handleReportSubmit = async (report) => {
-  try {
-    const assistance = Array.isArray(report.assistanceNeeds)
-      ? report.assistanceNeeds.join(", ")
-      : report.assistance || report.assistanceNeeded || "";
+  const handleReportSubmit = async (report) => {
+    try {
+      const assistance = Array.isArray(report.assistanceNeeds)
+        ? report.assistanceNeeds.join(", ")
+        : report.assistance || report.assistanceNeeded || "";
 
-    const response = await apiRequest("/api/reports/", {
-      method: "POST",
-      token: token,
-      body: {
-        disasterType: report.disasterType,
-        location: report.location,
-        severity: report.severity,
-        peopleAffected: Number(report.peopleAffected) || 0,
-        assistance: assistance,
-        description: report.description || "",
-        latitude: report.latitude ?? null,
-        longitude: report.longitude ?? null,
-      },
-    });
+      const response = await apiRequest("/api/reports/", {
+        method: "POST",
+        token: token,
+        body: {
+          disasterType: report.disasterType,
+          location: report.location,
+          severity: report.severity,
+          peopleAffected: Number(report.peopleAffected) || 0,
+          assistance: assistance,
+          description: report.description || "",
+          latitude: report.latitude ?? null,
+          longitude: report.longitude ?? null,
+        },
+      });
 
-    const savedReport = response.report;
+      const savedReport = response.report;
 
-    setReports((previousReports) => [
-      ...previousReports,
-      {
-        ...savedReport,
-        submittedBy: currentUser.email,
-      },
-    ]);
+      setReports((previousReports) => [
+        ...previousReports,
+        {
+          ...savedReport,
+          submittedBy: currentUser.email,
+        },
+      ]);
 
-    alert("Emergency report submitted successfully!");
-  } catch (error) {
-    alert(error.message || "Failed to submit emergency report.");
-  }
-};
-
-
-  // Update report status
-  const handleUpdateStatus = (reportId, newStatus) => {
-    setReports((previousReports) =>
-      previousReports.map((report) =>
-        report.id === reportId
-          ? {
-              ...report,
-              status: newStatus,
-              ...(newStatus === "Accepted"
-                ? { assignedTo: currentUser.email }
-                : {}),
-            }
-          : report
-      )
-    );
+      alert("Emergency report submitted successfully!");
+    } catch (error) {
+      alert(error.message || "Failed to submit emergency report.");
+    }
   };
 
-  // Assign task
-  const handleAssignTask = (reportId, taskId, organization) => {
-    setReports((previousReports) =>
-      previousReports.map((report) =>
-        report.id === reportId
-          ? {
-              ...report,
-              tasks: (report.tasks || []).map((task) =>
-                task.id === taskId
-                  ? {
-                      ...task,
-                      assignedOrganization: organization,
-                      status: "Assigned",
-                    }
-                  : task
-              ),
-            }
-          : report
-      )
-    );
+  // Update assignment status through the backend
+  const handleUpdateAssignmentStatus = async (
+    assignmentId,
+    newStatus
+  ) => {
+    try {
+      const response = await apiRequest(
+        `/api/assignments/${assignmentId}/status`,
+        {
+          method: "PATCH",
+          token: token,
+          body: {
+            status: newStatus,
+          },
+        }
+      );
+
+      setAssignments((previousAssignments) =>
+        previousAssignments.map((assignment) =>
+          assignment.id === assignmentId
+            ? {
+                ...assignment,
+                ...(response.assignment || {}),
+                status: newStatus,
+              }
+            : assignment
+        )
+      );
+
+      alert("Assignment status updated successfully!");
+    } catch (error) {
+      alert(error.message || "Failed to update assignment status.");
+    }
   };
 
   // Show citizen dashboard
@@ -186,8 +193,8 @@ const handleReportSubmit = async (report) => {
       <ResponderDashboard
         user={currentUser}
         reports={reports}
-        onUpdateStatus={handleUpdateStatus}
-        onAssignTask={handleAssignTask}
+        assignments={assignments}
+        onUpdateAssignmentStatus={handleUpdateAssignmentStatus}
         onLogout={handleLogout}
       />
     );
