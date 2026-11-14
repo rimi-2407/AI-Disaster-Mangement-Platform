@@ -35,7 +35,7 @@ def admin_required():
     return user
 
 
-# ADMIN: Create an assignment
+# ADMIN: Create an assignment (responder is optional)
 @assignment_bp.route("/", methods=["POST"])
 @jwt_required()
 def create_assignment():
@@ -57,8 +57,10 @@ def create_assignment():
 
     try:
         emergency_id = int(emergency_id)
-        responder_id = int(responder_id)
         resource_quantity = int(resource_quantity)
+
+        if responder_id is not None:
+            responder_id = int(responder_id)
 
         if resource_id is not None:
             resource_id = int(resource_id)
@@ -66,8 +68,11 @@ def create_assignment():
     except (ValueError, TypeError):
         return jsonify({"error": "IDs and quantity must be valid numbers"}), 400
 
-    if emergency_id <= 0 or responder_id <= 0:
-        return jsonify({"error": "IDs must be positive numbers"}), 400
+    if emergency_id <= 0:
+        return jsonify({"error": "Emergency ID must be positive"}), 400
+
+    if responder_id is not None and responder_id <= 0:
+        return jsonify({"error": "Responder ID must be positive"}), 400
 
     if resource_id is not None and resource_id <= 0:
         return jsonify({"error": "Resource ID must be positive"}), 400
@@ -81,7 +86,6 @@ def create_assignment():
         }), 400
 
     emergency = db.session.get(EmergencyReport, emergency_id)
-    responder = db.session.get(Responder, responder_id)
 
     if not emergency:
         return jsonify({"error": "Emergency report not found"}), 404
@@ -89,24 +93,30 @@ def create_assignment():
     if emergency.status in ["resolved", "closed", "completed"]:
         return jsonify({"error": "This emergency report is already closed"}), 400
 
-    if not responder:
-        return jsonify({"error": "Responder not found"}), 404
+    responder = None
 
-    if responder.approval_status != "approved":
-        return jsonify({"error": "Responder is not approved"}), 400
+    # If the admin selected a responder, retain the old direct-assignment flow.
+    if responder_id is not None:
+        responder = db.session.get(Responder, responder_id)
 
-    if responder.availability != "available":
-        return jsonify({"error": "Responder is not available"}), 400
+        if not responder:
+            return jsonify({"error": "Responder not found"}), 404
 
-    existing_assignment = Assignment.query.filter(
-        Assignment.responder_id == responder_id,
-        Assignment.status.in_(["assigned", "in_progress"])
-    ).first()
+        if responder.approval_status != "approved":
+            return jsonify({"error": "Responder is not approved"}), 400
 
-    if existing_assignment:
-        return jsonify({
-            "error": "Responder already has an active assignment"
-        }), 400
+        if responder.availability != "available":
+            return jsonify({"error": "Responder is not available"}), 400
+
+        existing_assignment = Assignment.query.filter(
+            Assignment.responder_id == responder_id,
+            Assignment.status.in_(["assigned", "in_progress"])
+        ).first()
+
+        if existing_assignment:
+            return jsonify({
+                "error": "Responder already has an active assignment"
+            }), 400
 
     resource = None
 
@@ -143,7 +153,8 @@ def create_assignment():
         if resource:
             resource.available_quantity -= resource_quantity
 
-        responder.availability = "busy"
+        if responder:
+            responder.availability = "busy"
 
         db.session.add(assignment)
         db.session.commit()
@@ -153,7 +164,10 @@ def create_assignment():
         return jsonify({"error": "Could not create assignment"}), 500
 
     return jsonify({
-        "message": "Assignment created successfully",
+        "message": (
+            "Assignment created successfully"
+            if responder else "Unclaimed assignment created successfully"
+        ),
         "assignment": assignment.to_dict()
     }), 201
 
@@ -181,7 +195,104 @@ def get_assignments():
     }), 200
 
 
-# ADMIN or assigned responder: View one assignment
+# RESPONDER: Claim an unclaimed assignment
+@assignment_bp.route("/<int:assignment_id>/claim", methods=["POST"])
+@jwt_required()
+def claim_assignment(assignment_id):
+
+    user = get_current_user()
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user.role != "responder":
+        return jsonify({"error": "Responder access required"}), 403
+
+    responder = user.responder_profile
+
+    if not responder:
+        return jsonify({"error": "Responder profile not found"}), 404
+
+    if responder.approval_status != "approved":
+        return jsonify({"error": "Your responder account is not approved"}), 403
+
+    if responder.availability != "available":
+        return jsonify({"error": "You are not currently available"}), 400
+
+    assignment = db.session.get(Assignment, assignment_id)
+
+    if not assignment:
+        return jsonify({"error": "Assignment not found"}), 404
+
+    if assignment.responder_id is not None:
+        return jsonify({"error": "This assignment has already been claimed"}), 409
+
+    if assignment.status != "assigned":
+        return jsonify({"error": "This assignment is not available to claim"}), 400
+
+    emergency = db.session.get(EmergencyReport, assignment.emergency_id)
+
+    if not emergency or emergency.status in ["resolved", "closed", "completed"]:
+        return jsonify({"error": "This emergency report is already closed"}), 400
+
+    existing_assignment = Assignment.query.filter(
+        Assignment.responder_id == responder.id,
+        Assignment.status.in_(["assigned", "in_progress"])
+    ).first()
+
+    if existing_assignment:
+        return jsonify({
+            "error": "You already have an active assignment"
+        }), 400
+
+    try:
+        # Reserve this responder only if they are still available.
+        responder_updated = Responder.query.filter(
+            Responder.id == responder.id,
+            Responder.approval_status == "approved",
+            Responder.availability == "available"
+        ).update(
+            {"availability": "busy"},
+            synchronize_session=False
+        )
+
+        if responder_updated != 1:
+            db.session.rollback()
+            return jsonify({
+                "error": "You are no longer available to claim an assignment"
+            }), 409
+
+        # Claim only if the assignment is still unclaimed.
+        assignment_updated = Assignment.query.filter(
+            Assignment.id == assignment_id,
+            Assignment.responder_id.is_(None),
+            Assignment.status == "assigned"
+        ).update(
+            {"responder_id": responder.id},
+            synchronize_session=False
+        )
+
+        if assignment_updated != 1:
+            db.session.rollback()
+            return jsonify({
+                "error": "Another responder has already claimed this assignment"
+            }), 409
+
+        db.session.commit()
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "Could not claim assignment"}), 500
+
+    assignment = db.session.get(Assignment, assignment_id)
+
+    return jsonify({
+        "message": "Assignment claimed successfully",
+        "assignment": assignment.to_dict()
+    }), 200
+
+
+# ADMIN or any RESPONDER: View one assignment
 @assignment_bp.route("/<int:assignment_id>", methods=["GET"])
 @jwt_required()
 def get_assignment(assignment_id):
@@ -191,17 +302,13 @@ def get_assignment(assignment_id):
     if not user:
         return jsonify({"error": "User not found"}), 404
 
+    if user.role not in ["admin", "responder"]:
+        return jsonify({"error": "Access denied"}), 403
+
     assignment = db.session.get(Assignment, assignment_id)
 
     if not assignment:
         return jsonify({"error": "Assignment not found"}), 404
-
-    if user.role != "admin":
-        if (
-            not user.responder_profile
-            or user.responder_profile.id != assignment.responder_id
-        ):
-            return jsonify({"error": "Access denied"}), 403
 
     return jsonify({"assignment": assignment.to_dict()}), 200
 
@@ -223,7 +330,8 @@ def update_assignment_status(assignment_id):
 
     if user.role != "admin":
         if (
-            not user.responder_profile
+            user.role != "responder"
+            or not user.responder_profile
             or user.responder_profile.id != assignment.responder_id
         ):
             return jsonify({"error": "Access denied"}), 403
@@ -244,11 +352,19 @@ def update_assignment_status(assignment_id):
     }
 
     if new_status not in allowed_transitions.get(assignment.status, []):
+        return jsonify({"error": "Invalid status transition"}), 400
+
+    # An unclaimed assignment cannot be started or completed.
+    if assignment.responder_id is None and new_status != "cancelled":
         return jsonify({
-            "error": "Invalid status transition"
+            "error": "An assignment must be claimed before it can be started"
         }), 400
 
-    responder = db.session.get(Responder, assignment.responder_id)
+    responder = (
+        db.session.get(Responder, assignment.responder_id)
+        if assignment.responder_id is not None
+        else None
+    )
 
     try:
         if new_status == "cancelled" and assignment.resource_id:

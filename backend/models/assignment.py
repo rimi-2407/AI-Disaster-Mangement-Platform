@@ -17,7 +17,7 @@ class Assignment(db.Model):
     responder_id = db.Column(
         db.Integer,
         db.ForeignKey("responders.id"),
-        nullable=False
+        nullable=True
     )
 
     resource_id = db.Column(
